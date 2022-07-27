@@ -29,6 +29,8 @@ set backupdir=~/.cache/vim " Directory to store backup files.
 set splitright
 set splitbelow
 
+"modeline
+set modeline
 "set leader
 let mapleader=","
 
@@ -39,14 +41,15 @@ let mapleader=","
 :nmap \o :set paste!<CR>
 
 "set list chars
-set list listchars=tab:->\ ,trail:-,eol:⮠
+set list listchars=tab:->\ ,trail:-,eol:⮠,space:·,extends:⟩,precedes:⟨
 "Plugin Section
 call plug#begin()
   Plug 'dracula/vim'
   Plug 'ryanoasis/vim-devicons'
   Plug 'SirVer/ultisnips'
   Plug 'honza/vim-snippets'
-  "Plug 'scrooloose/nerdtree'
+  Plug 'quangnguyen30192/cmp-nvim-ultisnips'
+  Plug 'iamcco/markdown-preview.nvim', { 'do': 'cd app && yarn install' }
   Plug 'kyazdani42/nvim-tree.lua'
   Plug 'preservim/nerdcommenter'
   Plug 'mhinz/vim-startify'
@@ -62,11 +65,26 @@ call plug#begin()
   Plug 'camspiers/lens.vim'
   Plug 'romgrk/barbar.nvim'
   Plug 'SmiteshP/nvim-navic'
-  Plug 'luochen1990/rainbow', {'for': 'clojure'}
+  Plug 'tpope/vim-surround'
+  Plug 'tpope/vim-commentary'
+  Plug 'williamboman/mason.nvim'
+  Plug 'luochen1990/rainbow'
+  Plug 'hrsh7th/cmp-nvim-lsp'
+  Plug 'hrsh7th/cmp-buffer'
+  Plug 'hrsh7th/cmp-path'
+  Plug 'hrsh7th/cmp-cmdline'
+  Plug 'hrsh7th/nvim-cmp'
+  Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
+  Plug 'junegunn/fzf.vim'
+  Plug 'ray-x/go.nvim', {'for': 'go'}
+  Plug 'ray-x/guihua.lua', {'for': 'go'}
   Plug 'guns/vim-sexp',    {'for': 'clojure'}
   Plug 'liquidz/vim-iced', {'for': 'clojure'}
   Plug 'liquidz/vim-iced-coc-source', {'for': 'clojure'}
 call plug#end()
+
+"autocomplete
+set completeopt=menu,menuone,noselect
 
 "theme
 "color schemes
@@ -133,6 +151,7 @@ let g:ctrlp_working_path_mode = 'r'
 let g:ctrlp_map = '<c-p>'
 let g:ctrlp_cmd = 'CtrlP'
 let g:ctrlp_extensions = ['tag']
+let g:ctrlp_user_command = ['.git', 'cd %s && git ls-files -c --exclude-standard --recurse-submodules | grep -x -v "$( git ls-files -d --exclude-standard )" ; git ls-files -o --exclude-standard', 'find %s -type f' ]
 nmap \f :CtrlPTag<cr>
 
 "vim-iced
@@ -153,11 +172,12 @@ aug END
 " or
 " `s{char}{char}{label}`
 " Need one more keystroke, but on average, it may be more comfortable.
-nmap s <Plug>(easymotion-overwin-f2)
+nmap <Leader><Leader>f <Plug>(easymotion-overwin-f)
 " Turn on case insensitive feature
 let g:EasyMotion_smartcase = 1
 " JK motions: Line motions
-map <Leader>j <Plug>(easymotion-j)
+map <Leader><Leader>j <Plug>(easymotion-j)
+map <Leader><Leader>k <Plug>(easymotion-k)
 " easymotion
 let g:EasyMotion_do_mapping = 0 " Disable default mappings
 
@@ -171,20 +191,115 @@ lua << END
 ---require("nvim-gps").setup()
 ---local gps = require("nvim-gps")
 
+--go-nvim
+require('go').setup()
+
 --nvim-navic
 local navic = require("nvim-navic")
 
+--nvim-cmp
+local cmp = require('cmp')
+
+cmp.setup({
+  snippet = {
+    -- REQUIRED - you must specify a snippet engine
+    expand = function(args)
+      -- vim.fn["vsnip#anonymous"](args.body) -- For `vsnip` users.
+      -- require('luasnip').lsp_expand(args.body) -- For `luasnip` users.
+      -- require('snippy').expand_snippet(args.body) -- For `snippy` users.
+      vim.fn["UltiSnips#Anon"](args.body) -- For `ultisnips` users.
+    end,
+  },
+  window = {
+    -- completion = cmp.config.window.bordered(),
+    -- documentation = cmp.config.window.bordered(),
+  },
+  mapping = cmp.mapping.preset.insert({
+    ['<C-b>'] = cmp.mapping.scroll_docs(-4),
+    ['<C-f>'] = cmp.mapping.scroll_docs(4),
+    ['<C-Space>'] = cmp.mapping.complete(),
+    ['<C-e>'] = cmp.mapping.abort(),
+    ['<CR>'] = cmp.mapping.confirm({ select = true }), -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
+  }),
+  sources = cmp.config.sources({
+    { name = 'nvim_lsp' },
+    -- { name = 'vsnip' }, -- For vsnip users.
+    -- { name = 'luasnip' }, -- For luasnip users.
+    { name = 'ultisnips' }, -- For ultisnips users.
+    -- { name = 'snippy' }, -- For snippy users.
+  }, {
+    { name = 'buffer' },
+  })
+})
+
+-- Set configuration for specific filetype.
+cmp.setup.filetype('gitcommit', {
+  sources = cmp.config.sources({
+    { name = 'cmp_git' }, -- You can specify the `cmp_git` source if you were installed it.
+  }, {
+    { name = 'buffer' },
+  })
+})
+
+-- Use buffer source for `/` (if you enabled `native_menu`, this won't work anymore).
+cmp.setup.cmdline('/', {
+  mapping = cmp.mapping.preset.cmdline(),
+  sources = {
+    { name = 'buffer' }
+  }
+})
+
+-- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
+cmp.setup.cmdline(':', {
+  mapping = cmp.mapping.preset.cmdline(),
+  sources = cmp.config.sources({
+    { name = 'path' }
+  }, {
+    { name = 'cmdline' }
+  })
+})
+
+-- Setup lspconfig.
+local capabilities = require('cmp_nvim_lsp').update_capabilities(vim.lsp.protocol.make_client_capabilities())
+
 --nvim-lspconfig
+require("mason").setup()
+
+local configs = require('lspconfig/configs')
+configs.zk = {
+  default_config = {
+    cmd = {'zk', 'lsp'},
+    filetypes = {'markdown'},
+    root_dir = function()
+      return vim.loop.cwd()
+    end,
+    settings = {}
+  };
+}
+
+require("lspconfig").zk.setup({ on_attach = function(client, buffer) 
+    capabilities = capabilities
+    end 
+})
+
 require("lspconfig").clojure_lsp.setup{
+    capabilities = capabilities,
     on_attach = function(client, bufnr)
         navic.attach(client, bufnr)
     end
 }
---require("lspconfig").pyright.setup{
---    on_attach = function(client, bufnr)
---        navic.attach(client, bufnr)
---   end
---}
+require("lspconfig").pyright.setup{
+    capabilities = capabilities,
+    on_attach = function(client, bufnr)
+        navic.attach(client, bufnr)
+   end
+}
+require("lspconfig").gopls.setup{
+    capabilities = capabilities,
+    on_attach = function(client, bufnr)
+        navic.attach(client, bufnr)
+   end
+}
 
 --nvim-tree
 require("nvim-tree").setup({
@@ -235,6 +350,5 @@ require('lualine').setup {
   tabline = {},
   extensions = {}
 }
-
 
 END
